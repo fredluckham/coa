@@ -35,7 +35,7 @@ def sync_monitored_resources():
             kwargs = {
                 "TagFilters": [
                     {
-                        'Key': 'Rebura:Monitored',
+                        'Key': '<COMPANY>:Monitored',
                         'Values': ['True']
                     }
                 ]
