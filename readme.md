@@ -1,19 +1,19 @@
-# 🔔 Rebura COA Workloads – Cloud Observability Alarms (COA)
+# COA – Cloud Observability Alarms (COA)
 
 **COA** is a modular, event-driven monitoring framework designed to automatically generate and manage CloudWatch alarms across AWS services using tags, custom configurations, and centralized orchestration.
 
-## 📦 Overview
+## Overview
 
 This solution provides:
 
-- 🧠 Intelligent alarm creation based on tagged AWS resources
-- ⚙️ Custom thresholds via a prepopulated DynamoDB config table
-- 📡 Event-driven processing using EventBridge and Step Functions
-- 🪵 Structured observability with AWS Lambda Powertools for logging, metrics, and tracing
+- Intelligent alarm creation based on tagged AWS resources
+- Custom thresholds via a prepopulated DynamoDB config table
+- Event-driven processing using EventBridge and Step Functions
+- Structured observability with AWS Lambda Powertools for logging, metrics, and tracing
 
 The goal is zero-touch alarm coverage for EC2 and beyond, all managed declaratively via tagging.
 
-## 🧱 Architecture
+## Architecture
 
 ```
 Resource Tag Change or EC2 Termination
@@ -38,7 +38,7 @@ Resource Tag Change or EC2 Termination
   - `AlarmTable`: Stores alarm configs
   - `ClientTable`: Reserved for client-specific metadata
 
-## 🚀 Deployment
+## Deployment
 
 This project uses **AWS SAM** and can be deployed via GitHub Actions.
 
@@ -59,7 +59,7 @@ sam build --use-container
 sam deploy --guided
 ```
 
-## 🧪 Local Testing
+## Local Testing
 
 You can invoke the functions locally using SAM CLI:
 
@@ -73,23 +73,23 @@ Or test event ingestion:
 aws events put-events --entries file://events/test-termination.json
 ```
 
-## 🛠️ Configuration
+## Configuration
 
 All runtime config is passed via environment variables and the `template.yaml` stack parameters:
 
 - `AlarmTable` and `ClientTable`
-- Tag identifiers: `Rebura`, `Supported`, `Monitored`, etc.
+- Tag identifiers: `<COMPANY>`, `Supported`, `Monitored`, etc.
 - Metric tags: `disk_used_percent`, `StatusCheckFailed`, etc.
 
 Update seed data in `functions/seed_dynamodb/app.py` to define new service alarms.
 
-## 🔐 Security
+## Security
 
 - Least privilege IAM roles per Lambda
 - EventBus policy can be scoped to specific accounts if needed
 - DynamoDB and Lambda access controlled via environment and SAM permissions
 
-## 📈 Supported Alarms (by default)
+## Supported Alarms (by default)
 
 - EC2:
   - CPUUtilization
@@ -97,7 +97,7 @@ Update seed data in `functions/seed_dynamodb/app.py` to define new service alarm
   - Disk usage (Linux/Windows)
 - RDS, ELB, and others can be added easily via the config layer.
 
-## 📓 Logging & Tracing
+## Logging & Tracing
 
 - Lambda Powertools enabled:
   - Structured JSON logs
@@ -105,39 +105,21 @@ Update seed data in `functions/seed_dynamodb/app.py` to define new service alarm
   - AWS X-Ray tracing
 - Logs can be viewed in CloudWatch under each function’s log group
 
-## 🤝 Contributions
-
-You're welcome to extend this repo by adding:
-- New metric handlers
-- Step function enhancements
-- CI/CD improvements
-
-## 🧼 Cleanup
-
-To delete all resources:
-
-```bash
-sam delete
-```
-
-Or remove the CloudFormation stacks via AWS Console.
-
-
-
+## Usage
 
 To trigger alarm creation, tag your AWS resources using the following format:
 
 ### Required Tag
-- **Key**: `Rebura:Monitored`
+- **Key**: `<COMPANY>:Monitored`
 - **Value**: `true` (case-insensitive)
 
 This signals the system to include the resource in the monitoring workflow.
 
 ### Optional Tags (For More Control)
-- **Rebura:Company** – Used to categorize resources by client or business unit
-- **Rebura:Supported** – Boolean flag indicating ownership or SLA requirement
-- **Rebura:Dimension** – Used to map to specific CloudWatch metric dimensions
-- **Rebura:Identifier** – Resource-specific identifier (like InstanceId)
+- **<COMPANY>:Company** – Used to categorize resources by client or business unit
+- **<COMPANY>:Supported** – Boolean flag indicating ownership or SLA requirement
+- **<COMPANY>:Dimension** – Used to map to specific CloudWatch metric dimensions
+- **<COMPANY>:Identifier** – Resource-specific identifier (like InstanceId)
 
 When a tagged resource is created or updated:
 1. An **EventBridge rule** captures the tag change.
@@ -147,8 +129,8 @@ When a tagged resource is created or updated:
 ### Example (EC2 Console Tagging)
 | Key               | Value      |
 |------------------|------------|
-| Rebura:Monitored | true       |
-| Rebura:Company   | Rebura     |
-| Rebura:Supported | true       |
+| <COMPANY>:Monitored | true       |
+| <COMPANY>:Company   | Rebura     |
+| <COMPANY>:Supported | true       |
 
 Ensure that your environment includes a seed configuration for the matching resource type (e.g., EC2, RDS) to successfully apply alarm thresholds.
