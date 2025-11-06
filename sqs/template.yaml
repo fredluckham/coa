@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: SQS Template
+
+Parameters:
+
+  Environment:
+    Type: String
+    Description: 'Environment to deploy'
+    Default: 'dev'
+    AllowedValues:
+      - dev
+      - prod
+
+  Application:
+    Type: String
+    Description: 'Application name'
+    Default: 'coa'
+
+  Region:
+    Type: String
+    Description: 'Region in which to deploy'
+    Default: 'eu-west-1'
+
+  RoleName:
+    Type: String
+    Description: 'Role to assume'
+
+  SessionName:
+    Type: String
+    Description: 'Name of assumed session'
+
+  LogLevel:
+    Type: String
+    Description: 'Powertools log level'
+    Default: 'DEBUG'
+
+  LogEvent:
+    Type: String
+    Description: 'Powertools log event in handler'
+    Default: 'true'
+
+  StepfunctionArn:
+    Type: String
+    Description: 'ARN of main step function'
+
+  SessionName:
+    Type: String
+    Description: 'Name of assumed session'
+
+  AlarmTable:
+    Type: String
+    Description: 'Name of alarm config DynamoDB table'
+
+  MonitoredResourcesTable:
+    Type: String
+    Description: 'Name of the monitored resources DynamoDB table'
+
+  TrackedAlarmsTable:
+    Type: String
+    Description: 'Name of the tracked alarms DynamoDB table'
+
+  ClientTable:
+    Type: String
+    Description: 'Name of client config DynamoDB table'
+
+  CompanyTag:
+    Type: String
+    Default: 'Rebura'
+
+  SupportTag:
+    Type: String
+    Default: 'Supported'
+
+  MonitorTag:
+    Type: String
+    Default: 'Monitored'
+
+  DimensionsTag:
+    Type: String
+    Default: 'Dimension'
+
+  IdentifierTag:
+    Type: String
+    Default: 'Identifier'
+
+  CloudwatchTag:
+    Type: String
+    Default: 'CloudWatch'
+
+  EC2LinuxDiskTag:
+    Type: String
+    Default: 'disk_used_percent'
+
+  EC2WindowsDiskTag:
+    Type: String
+    Default: 'LogicalDisk % Free Space'
+
+Resources:
+  EventProcessingDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${Environment}_${Application}_event_processing_dlq
+      MessageRetentionPeriod: 1209600 # 14 days
+
+  EventProcessingQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${Environment}_${Application}_event_processing_queue
+      VisibilityTimeout: 900 # 15 minutes to allow for processing time
+      MessageRetentionPeriod: 1209600 # 14 days
+      ReceiveMessageWaitTimeSeconds: 20 # Enable long polling
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt EventProcessingDLQ.Arn
+        maxReceiveCount: 3
+
+  EventProcessingQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref EventProcessingQueue
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowEventBridgeToSendMessage
+            Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action:
+              - sqs:SendMessage
+            Resource: !GetAtt EventProcessingQueue.Arn
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId

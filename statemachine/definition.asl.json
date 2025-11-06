@@ -1,0 +1,195 @@
+{
+    "Comment": "A centralised observability automation tool. It creates alerts on tagged resources in other accounts via Event Bridge.",
+    "StartAt": "Cleaner",
+    "States": {
+        "Cleaner": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "OutputPath": "$.Payload",
+            "Parameters": {
+                "Payload.$": "$",
+                "FunctionName": "${cleaner_lambda}"
+            },
+            "Retry": [
+                {
+                    "ErrorEquals": [
+                        "Lambda.ServiceException",
+                        "Lambda.AWSLambdaException",
+                        "Lambda.SdkClientException",
+                        "Lambda.TooManyRequestsException"
+                    ],
+                    "IntervalSeconds": 2,
+                    "MaxAttempts": 6,
+                    "BackoffRate": 2
+                }
+            ],
+            "Next": "Create / Delete / Ignore"
+        },
+        "Configure EC2": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "OutputPath": "$.Payload",
+            "Parameters": {
+                "Payload.$": "$",
+                "FunctionName": "${configure_ec2_lambda}"
+            },
+            "Retry": [
+                {
+                    "ErrorEquals": [
+                        "Lambda.ServiceException",
+                        "Lambda.AWSLambdaException",
+                        "Lambda.SdkClientException",
+                        "Lambda.TooManyRequestsException"
+                    ],
+                    "IntervalSeconds": 2,
+                    "MaxAttempts": 6,
+                    "BackoffRate": 2
+                }
+            ],
+            "Next": "Wait Check"
+        },
+        "Wait Check": {
+            "Type": "Choice",
+            "Choices": [
+                {
+                    "Variable": "$.wait_for_metrics",
+                    "BooleanEquals": true,
+                    "Next": "Wait"
+                }
+            ],
+            "Default": "Build Alarm Config"
+        },
+        "Wait": {
+            "Type": "Wait",
+            "Seconds": 60,
+            "Next": "Build Alarm Config"
+        },
+        "Build Alarm Config": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "OutputPath": "$.Payload",
+            "Parameters": {
+                "Payload.$": "$",
+                "FunctionName": "${build_alarm_config_lambda}"
+            },
+            "Retry": [
+                {
+                    "ErrorEquals": [
+                        "Lambda.ServiceException",
+                        "Lambda.AWSLambdaException",
+                        "Lambda.SdkClientException",
+                        "Lambda.TooManyRequestsException"
+                    ],
+                    "IntervalSeconds": 2,
+                    "MaxAttempts": 6,
+                    "BackoffRate": 2
+                }
+            ],
+            "Next": "Create Alarm"
+        },
+        "Deleter": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "OutputPath": "$.Payload",
+            "Parameters": {
+                "Payload.$": "$",
+                "FunctionName": "${deleter_lambda}"
+            },
+            "Retry": [
+                {
+                    "ErrorEquals": [
+                        "Lambda.ServiceException",
+                        "Lambda.AWSLambdaException",
+                        "Lambda.SdkClientException",
+                        "Lambda.TooManyRequestsException"
+                    ],
+                    "IntervalSeconds": 2,
+                    "MaxAttempts": 6,
+                    "BackoffRate": 2
+                }
+            ],
+            "End": true
+        },
+        "Create Alarm": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "OutputPath": "$.Payload",
+            "Parameters": {
+                "Payload.$": "$",
+                "FunctionName": "${create_alarm_lambda}"
+            },
+            "Retry": [
+                {
+                    "ErrorEquals": [
+                        "Lambda.ServiceException",
+                        "Lambda.AWSLambdaException",
+                        "Lambda.SdkClientException",
+                        "Lambda.TooManyRequestsException"
+                    ],
+                    "IntervalSeconds": 2,
+                    "MaxAttempts": 6,
+                    "BackoffRate": 2
+                }
+            ],
+            "End": true
+        },
+        "Create / Delete / Ignore": {
+            "Type": "Choice",
+            "Choices": [
+                {
+                    "And": [
+                        {
+                            "Variable": "$.monitored",
+                            "BooleanEquals": true
+                        },
+                        {
+                            "Variable": "$.service",
+                            "StringEquals": "ec2"
+                        },
+                        {
+                            "Variable": "$.cloudwatch",
+                            "BooleanEquals": true
+                        }
+                    ],
+                    "Next": "Configure EC2"
+                },
+                {
+                    "And": [
+                        {
+                            "Variable": "$.monitored",
+                            "BooleanEquals": true
+                        }
+                    ],
+                    "Next": "Build Alarm Config"
+                },
+                {
+                    "And": [
+                        {
+                            "Variable": "$.monitored",
+                            "BooleanEquals": false
+                        }
+                    ],
+                    "Next": "Deleter"
+                },
+                {
+                    "And": [
+                        {
+                            "Variable": "$.state",
+                            "StringEquals": "terminated"
+                        },
+                        {
+                            "Variable": "$.source",
+                            "StringEquals": "aws.ec2"
+                        }
+                    ],
+                    "Next": "Deleter"
+                }
+            ],
+            "Default": "Pass"
+        },
+        "Pass": {
+            "Type": "Pass",
+            "End": true
+        }
+    }
+}

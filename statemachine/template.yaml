@@ -1,0 +1,154 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Workflow Template
+
+Parameters:
+
+  Environment:
+    Type: String
+    Description: 'Environment to deploy'
+    Default: 'dev'
+    AllowedValues:
+      - dev
+      - prod
+
+  Application:
+    Type: String
+    Description: 'Application name'
+    Default: 'coa'
+
+  Region:
+    Type: String
+    Description: 'Region in which to deploy'
+    Default: 'eu-west-1'
+
+  RoleName:
+    Type: String
+    Description: 'Role to assume'
+
+  LogLevel:
+    Type: String
+    Description: 'Powertools log level'
+    Default: 'DEBUG'
+
+  LogEvent:
+    Type: String
+    Description: 'Powertools log event in handler'
+    Default: 'true'
+
+  StepfunctionArn:
+    Type: String
+    Description: 'ARN of main step function'
+
+  SessionName:
+    Type: String
+    Description: 'Name of assumed session'
+
+  AlarmTable:
+    Type: String
+    Description: 'Name of alarm config DynamoDB table.'
+
+  ClientTable:
+    Type: String
+    Description: 'Name of client config DynamoDB table'
+
+  CompanyTag:
+    Type: String
+    Default: 'Rebura'
+
+  SupportTag:
+    Type: String
+    Default: 'Supported'
+
+  MonitorTag:
+    Type: String
+    Default: 'Monitored'
+
+  DimensionsTag:
+    Type: String
+    Default: 'Dimension'
+
+  IdentifierTag:
+    Type: String
+    Default: 'Identifier'
+
+  CloudwatchTag:
+    Type: String
+    Default: 'CloudWatch'
+
+  EC2LinuxDiskTag:
+    Type: String
+    Default: 'disk_used_percent'
+
+  EC2WindowsDiskTag:
+    Type: String
+    Default: 'LogicalDisk % Free Space'
+
+Resources:
+
+  StateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub ${Environment}_${Application}_statemachine
+      Role: !Sub arn:aws:iam::${AWS::AccountId}:role/service-role/${Environment}_${Application}_statemachine_servicerole
+      DefinitionUri:  definition.asl.json
+      DefinitionSubstitutions:
+        cleaner_lambda: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Environment}_${Application}_cleaner
+        deleter_lambda: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Environment}_${Application}_deleter
+        inbound_lambda: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Environment}_${Application}_inbound
+        build_alarm_config_lambda: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Environment}_${Application}_build_alarm_config
+        create_alarm_lambda: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Environment}_${Application}_create_alarm
+        configure_ec2_lambda: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Environment}_${Application}_configure_ec2
+
+  StateMachineServiceRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: !Sub ${Environment}_${Application}_statemachine_servicerole
+        Path: /service-role/
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+              Action: sts:AssumeRole
+              Effect: Allow
+              Principal:
+                Service:
+                  - states.amazonaws.com
+        Policies:
+          - PolicyName: !Sub ${Environment}_${Application}_statemachine_lambdas
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Action:
+                    - lambda:InvokeFunction
+                    - lambda:InvokeAsync
+                  Effect: Allow
+                  Resource: 
+                    - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Environment}_${Application}_cleaner
+                    - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Environment}_${Application}_deleter
+                    - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Environment}_${Application}_build_alarm_config
+                    - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Environment}_${Application}_create_alarm
+                    - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Environment}_${Application}_inbound
+                    - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Environment}_${Application}_configure_ec2
+
+
+          - PolicyName: !Sub ${Environment}_${Application}_statemachine_logs
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Action:
+                    - logs:CreateLogDelivery
+                    - logs:GetLogDelivery
+                    - logs:UpdateLogDelivery
+                    - logs:DeleteLogDelivery
+                    - logs:ListLogDeliveries
+                    - logs:PutResourcePolicy
+                    - logs:DescribeResourcePolicies
+                    - logs:DescribeLogGroups
+                    - xray:PutTraceSegments
+                    - xray:PutTelemetryRecords
+                    - xray:GetSamplingRules
+                    - xray:GetSamplingTargets
+                    - sts:AssumeRole
+                  Effect: Allow
+                  Resource:
+                    - '*'

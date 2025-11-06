@@ -1,0 +1,379 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Workflow Template
+
+Parameters:
+  Environment:
+    Type: String
+    Description: 'Environment to deploy'
+    Default: 'dev'
+    AllowedValues:
+      - dev
+      - prod
+
+  Application:
+    Type: String
+    Description: 'Application name'
+    Default: 'coa'
+
+  Region:
+    Type: String
+    Description: 'Region in which to deploy'
+    Default: 'eu-west-1'
+
+  RoleName:
+    Type: String
+    Description: 'Role to assume'
+
+  SessionName:
+    Type: String
+    Description: 'Name of assumed session'
+
+  LogLevel:
+    Type: String
+    Description: 'Powertools log level'
+    Default: 'DEBUG'
+
+  LogEvent:
+    Type: String
+    Description: 'Powertools log event in handler'
+    Default: 'true'
+
+  StepfunctionArn:
+    Type: String
+    Description: 'ARN of main step function'
+
+  AlarmTable:
+    Type: String
+    Description: 'Name of alarm config DynamoDB table'
+
+  MonitoredResourcesTable:
+    Type: String
+    Description: 'Name of the monitored resources DynamoDB table'
+
+  TrackedAlarmsTable:
+    Type: String
+    Description: 'Name of the tracked alarms DynamoDB table'
+
+  ClientTable:
+    Type: String
+    Description: 'Name of client config DynamoDB table'
+
+  CompanyTag:
+    Type: String
+    Default: 'Rebura'
+
+  SupportTag:
+    Type: String
+    Default: 'Supported'
+
+  MonitorTag:
+    Type: String
+    Default: 'Monitored'
+
+  DimensionsTag:
+    Type: String
+    Default: 'Dimension'
+
+  IdentifierTag:
+    Type: String
+    Default: 'Identifier'
+
+  CloudwatchTag:
+    Type: String
+    Default: 'CloudWatch'
+
+  EC2LinuxDiskTag:
+    Type: String
+    Default: 'disk_used_percent'
+
+  EC2WindowsDiskTag:
+    Type: String
+    Default: 'LogicalDisk % Free Space'
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.12
+    Timeout: 300
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        env: !Ref Environment
+        app: !Ref Application
+        region: !Ref Region
+        role_name: !Ref RoleName
+        session_name: !Ref SessionName
+        step_function_arn: !Ref StepfunctionArn
+        powertools_log_level: !Ref LogLevel
+        powertools_log_event: !Ref LogEvent
+        alarm_table: !Ref AlarmTable
+        monitored_resources_table: !Ref MonitoredResourcesTable
+        tracked_alarms_table: !Ref TrackedAlarmsTable
+        client_table: !Ref ClientTable
+        company_tag: !Ref CompanyTag
+        support_tag: !Ref SupportTag
+        monitor_tag: !Ref MonitorTag
+        dimensions_tag: !Ref DimensionsTag
+        identifier_tag: !Ref IdentifierTag
+        cloudwatch_tag: !Ref CloudwatchTag
+        ec2_linux_disk_tag: !Ref EC2LinuxDiskTag
+        ec2_windows_disk_tag: !Ref EC2WindowsDiskTag
+    Layers:
+      - !Ref PynamoDBLayer
+      - !Ref CoaCommonLayer
+      - !Sub arn:aws:lambda:${Region}:017000801446:layer:AWSLambdaPowertoolsPythonV3-python312-x86_64:4
+
+Resources:
+
+  SeedDynamoDBCustomResource:
+    Type: Custom::SeedDynamoDB
+    Properties:
+      ServiceToken: !GetAtt SeedDynamoDBFunction.Arn
+      AlarmTableName: !Ref AlarmTable
+
+  PynamoDBLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub ${Environment}_${Application}_pynamodb_layer
+      ContentUri: ./functions/layers/pynamodb/
+      CompatibleRuntimes:
+        - python3.12
+    Metadata:
+      BuildMethod: python3.12
+
+  CoaCommonLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub ${Environment}_${Application}_coa_common_layer
+      ContentUri: ./functions/layers/coa_common/
+      CompatibleRuntimes:
+        - python3.12
+
+  ApiGateway:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Name: !Sub "${Environment}_${Application}_api"
+      CorsConfiguration:
+        AllowMethods: ["GET", "POST"]
+        AllowOrigins: ["*"]
+
+  ApiAlarmConfigFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${Environment}_${Application}_api_alarm_config"
+      CodeUri: ./functions/api_alarm_config/
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub "${Environment}_${Application}_alarm_configurations"
+      Events:
+        AlarmConfigRoutes:
+          Type: HttpApi
+          Properties:
+            Path: /alarms/{proxy+}
+            Method: ANY
+            ApiId: !Ref ApiGateway
+
+  ApiTrackedAlarmsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${Environment}_${Application}_api_tracked_alarms"
+      CodeUri: ./functions/api_tracked_alarms/
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub "${Environment}_${Application}_tracked_alarms"
+      Events:
+        TrackedAlarmsRoutes:
+          Type: HttpApi
+          Properties:
+            Path: /alarms/track/{proxy+}
+            Method: ANY
+            ApiId: !Ref ApiGateway
+
+  ApiMonitoredResourcesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${Environment}_${Application}_api_monitored_resources"
+      CodeUri: ./functions/api_monitored_resources/
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Sub "${Environment}_${Application}_monitored_resources"
+        - Statement:
+            Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Resource: "*"
+      Events:
+        MonitoredResourcesRoutes:
+          Type: HttpApi
+          Properties:
+            Path: /resources/{proxy+}
+            Method: ANY
+            ApiId: !Ref ApiGateway
+
+  SeedDynamoDBFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${Environment}_${Application}_seed_dynamodb
+      CodeUri: ./functions/seed_dynamodb/
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  Cleaner:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${Environment}_${Application}_cleaner
+      CodeUri: ./functions/cleaner/
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  Deleter:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${Environment}_${Application}_deleter
+      CodeUri: ./functions/deleter/
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  CreateAlarm:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${Environment}_${Application}_create_alarm
+      CodeUri: ./functions/create_alarm/
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  ConfigureEC2:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${Environment}_${Application}_configure_ec2
+      CodeUri: ./functions/configure_ec2/
+      Role: !GetAtt LambdaExecutionRole.Arn
+  
+  BuildAlarmConfig:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${Environment}_${Application}_build_alarm_config
+      CodeUri: ./functions/build_alarm_config/
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  Inbound:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${Environment}_${Application}_inbound
+      CodeUri: ./functions/inbound/
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !Sub arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${Environment}_${Application}_event_processing_queue
+            BatchSize: 10
+            MaximumBatchingWindowInSeconds: 5
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${Environment}_${Application}_lambda_role
+      Path: /service-role/
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Action: 'sts:AssumeRole'
+          Effect: Allow
+          Principal:
+            Service:
+              - lambda.amazonaws.com
+      Policies:
+        - PolicyName: !Sub ${Environment}_${Application}_lambda_log_policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                  - xray:GetSamplingRules
+                  - xray:GetSamplingTargets
+                Effect: Allow
+                Resource:
+                  - '*'
+
+        - PolicyName: !Sub ${Environment}_${Application}_lambda_dynamodb_alarm_config_table_policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:GetRecords
+                  - dynamodb:Scan
+                  - dynamodb:BatchWriteItem
+                  - dynamodb:PutItem
+                Effect: Allow
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Environment}_${Application}_alarm_configurations
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Environment}_${Application}_tracked_alarms
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Environment}_${Application}_monitored_resources
+
+        - PolicyName: !Sub ${Environment}_${Application}_lambda_dynamodb_ops_hub_accounts
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:GetRecords
+                  - dynamodb:Scan
+                Effect: Allow
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Environment}-rebura-ops-hub-accounts
+
+        - PolicyName: !Sub ${Environment}_${Application}_lambda_jira_api_policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - secretsmanager:GetSecretValue
+                Effect: Allow
+                Resource:
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${Environment}_${Application}-jira-api-key-*
+
+        - PolicyName: !Sub ${Environment}_${Application}_lambda_assume_role_policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - sts:AssumeRole
+                Effect: Allow
+                Resource:
+                  - "*"
+
+        - PolicyName: !Sub ${Environment}_${Application}_lambda_step_function_policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - states:StartExecution
+                  - states:ListExecutions
+                  - states:DescribeExecution
+                Effect: Allow
+                Resource:
+                  - !Sub arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${Environment}_${Application}_statemachine
+                  - !Sub arn:aws:states:${AWS::Region}:${AWS::AccountId}:execution:${Environment}_${Application}_statemachine:*
+
+        - PolicyName: !Sub ${Environment}_${Application}_lambda_sqs_policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Effect: Allow
+                Resource:
+                  - !Sub arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${Environment}_${Application}_event_processing_queue

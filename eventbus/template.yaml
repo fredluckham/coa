@@ -1,0 +1,169 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: EventBridge Workflow Template
+
+Parameters:
+
+  Environment:
+    Type: String
+    Default: dev
+
+  Application:
+    Type: String
+    Default: coa
+
+  Region:
+    Type: String
+    Default: eu-west-1
+
+  RoleName:
+    Type: String
+    Description: 'Role to assume'
+
+  SessionName:
+    Type: String
+    Description: 'Name of assumed session'
+
+  LogLevel:
+    Type: String
+    Default: DEBUG
+
+  LogEvent:
+    Type: String
+    Default: true
+
+  StepfunctionArn:
+    Type: String
+    Description: 'ARN of main step function'
+
+  AlarmTable:
+    Type: String
+    Description: 'Alarm config DynamoDB table'
+
+  ClientTable:
+    Type: String
+    Description: 'Client config DynamoDB table'
+
+  CompanyTag:
+    Type: String
+    Default: 'Rebura'
+
+  SupportTag:
+    Type: String
+    Default: 'Supported'
+
+  MonitorTag:
+    Type: String
+    Default: 'Monitored'
+
+  DimensionsTag:
+    Type: String
+    Default: 'Dimension'
+
+  IdentifierTag:
+    Type: String
+    Default: 'Identifier'
+
+  CloudwatchTag:
+    Type: String
+    Default: 'CloudWatch'
+
+  EC2LinuxDiskTag:
+    Type: String
+    Default: 'disk_used_percent'
+
+  EC2WindowsDiskTag:
+    Type: String
+    Default: 'LogicalDisk % Free Space'
+
+Resources:
+
+  EventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: !Sub ${Environment}_${Application}_eventbus
+  
+  EventBusPolicy:
+    Type: AWS::Events::EventBusPolicy
+    Properties:
+      EventBusName: !Sub ${Environment}_${Application}_eventbus
+      StatementId: !Sub ${Environment}_${Application}_AllowAllAccountsToPutEvents
+      Action: events:PutEvents
+      Principal: "*"
+    DependsOn: EventBus
+
+
+  EventBridgeServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${Environment}_${Application}_eventbus_servicerole
+      Path: /service-role/
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub ${Environment}_${Application}_eventbus_policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  - !Sub arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${Environment}_${Application}_event_processing_queue
+
+  EventRuleTagEvent:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub ${Environment}-${Application}_eventbus_tag_change_rule
+      EventBusName: !Ref EventBus
+      State: ENABLED
+      EventPattern:
+        source:
+          - rebura-coa
+        detail-type:
+          - Tag Change on Resource
+        detail:
+          resource-type:
+            - anything-but: snapshot
+      Targets:
+        - Id: receive_tag_event
+          Arn: !Sub arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${Environment}_${Application}_event_processing_queue
+          RoleArn: !GetAtt EventBridgeServiceRole.Arn
+    DependsOn:
+      - EventBus
+
+  EventRuleTerminateEvent:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub ${Environment}_${Application}_eventbus_rule_terminate
+      EventBusName: !Ref EventBus
+      State: ENABLED
+      EventPattern:
+        source:
+          - rebura-coa
+        detail-type:
+          - EC2 Instance State-change Notification
+        detail:
+          state:
+            - terminated
+      Targets:
+        - Id: receive_termination_event
+          Arn: !Sub arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${Environment}_${Application}_event_processing_queue
+          RoleArn: !GetAtt EventBridgeServiceRole.Arn
+    DependsOn:
+      - EventBus
+
+Outputs:
+
+  EventBusName:
+    Description: Name of the custom EventBus
+    Value: !Ref EventBus
+
+  EventBusArn:
+    Description: ARN of the EventBus
+    Value: !GetAtt EventBus.Arn

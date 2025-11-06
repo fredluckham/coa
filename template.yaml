@@ -1,0 +1,224 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Workflow Template
+
+Parameters:
+
+  Environment:
+    Type: String
+    Description: 'Environment to deploy'
+    Default: 'dev'
+    AllowedValues:
+      - dev
+      - prod
+
+  Application:
+    Type: String
+    Description: 'Application name'
+    Default: 'coa'
+
+  Region:
+    Type: String
+    Description: 'Region in which to deploy'
+    Default: 'eu-west-1'
+
+  RoleName:
+    Type: String
+    Description: 'Role to assume'
+
+  SessionName:
+    Type: String
+    Description: 'Name of assumed session'
+
+  LogLevel:
+    Type: String
+    Description: 'Powertools log level'
+    Default: 'DEBUG'
+
+  LogEvent:
+    Type: String
+    Description: 'Powertools log event in handler'
+    Default: 'true'
+
+  StepfunctionArn:
+    Type: String
+    Description: 'ARN of main step function'
+
+  SessionName:
+    Type: String
+    Description: 'Name of assumed session'
+
+  AlarmTable:
+    Type: String
+    Description: 'Name of alarm config DynamoDB table'
+
+  MonitoredResourcesTable:
+    Type: String
+    Description: 'Name of the monitored resources DynamoDB table'
+
+  TrackedAlarmsTable:
+    Type: String
+    Description: 'Name of the tracked alarms DynamoDB table'
+
+  ClientTable:
+    Type: String
+    Description: 'Name of client config DynamoDB table'
+
+  CompanyTag:
+    Type: String
+    Default: 'Rebura'
+
+  SupportTag:
+    Type: String
+    Default: 'Supported'
+
+  MonitorTag:
+    Type: String
+    Default: 'Monitored'
+
+  DimensionsTag:
+    Type: String
+    Default: 'Dimension'
+
+  IdentifierTag:
+    Type: String
+    Default: 'Identifier'
+
+  CloudwatchTag:
+    Type: String
+    Default: 'CloudWatch'
+
+  EC2LinuxDiskTag:
+    Type: String
+    Default: 'disk_used_percent'
+
+  EC2WindowsDiskTag:
+    Type: String
+    Default: 'LogicalDisk % Free Space'
+
+Resources:
+
+  SQS:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: sqs/template.yaml
+      Parameters:
+        Environment: !Ref Environment
+        Application: !Ref Application
+        Region: !Ref Region
+        RoleName: !Ref RoleName
+        SessionName: !Ref SessionName
+        LogLevel: !Ref LogLevel
+        LogEvent: !Ref LogEvent
+        StepfunctionArn: !Ref StepfunctionArn
+        AlarmTable: !Ref AlarmTable
+        MonitoredResourcesTable: !Ref MonitoredResourcesTable
+        TrackedAlarmsTable: !Ref TrackedAlarmsTable
+        ClientTable: !Ref ClientTable
+        CompanyTag: !Ref CompanyTag
+        SupportTag: !Ref SupportTag
+        MonitorTag: !Ref MonitorTag
+        DimensionsTag: !Ref DimensionsTag
+        IdentifierTag: !Ref IdentifierTag
+        CloudwatchTag: !Ref CloudwatchTag
+        EC2LinuxDiskTag: !Ref EC2LinuxDiskTag
+        EC2WindowsDiskTag: !Ref EC2WindowsDiskTag
+
+  DynamoDB:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: dynamodb/template.yaml
+      Parameters:
+        Environment: !Ref Environment
+        Application: !Ref Application
+        Region: !Ref Region
+        RoleName: !Ref RoleName
+        SessionName: !Ref SessionName
+        LogLevel: !Ref LogLevel
+        LogEvent: !Ref LogEvent
+        StepfunctionArn: !Ref StepfunctionArn
+        AlarmTable: !Ref AlarmTable
+        ClientTable: !Ref ClientTable
+        CompanyTag: !Ref CompanyTag
+        SupportTag: !Ref SupportTag
+        MonitorTag: !Ref MonitorTag
+        DimensionsTag: !Ref DimensionsTag
+        IdentifierTag: !Ref IdentifierTag
+        CloudwatchTag: !Ref CloudwatchTag
+        EC2LinuxDiskTag: !Ref EC2LinuxDiskTag
+        EC2WindowsDiskTag: !Ref EC2WindowsDiskTag
+
+  Lambda:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: SQS
+    Properties:
+      TemplateURL: lambda/template.yaml
+      Parameters:
+        Environment: !Ref Environment
+        Application: !Ref Application
+        Region: !Ref Region
+        RoleName: !Ref RoleName
+        SessionName: !Ref SessionName
+        LogLevel: !Ref LogLevel
+        LogEvent: !Ref LogEvent
+        StepfunctionArn: !Ref StepfunctionArn
+        AlarmTable: !Ref AlarmTable
+        MonitoredResourcesTable: !Ref MonitoredResourcesTable
+        TrackedAlarmsTable: !Ref TrackedAlarmsTable
+        ClientTable: !Ref ClientTable
+        CompanyTag: !Ref CompanyTag
+        SupportTag: !Ref SupportTag
+        MonitorTag: !Ref MonitorTag
+        DimensionsTag: !Ref DimensionsTag
+        IdentifierTag: !Ref IdentifierTag
+        CloudwatchTag: !Ref CloudwatchTag
+        EC2LinuxDiskTag: !Ref EC2LinuxDiskTag
+        EC2WindowsDiskTag: !Ref EC2WindowsDiskTag
+
+  EventBus:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: eventbus/template.yaml
+      Parameters:
+        Environment: !Ref Environment
+        Application: !Ref Application
+        Region: !Ref Region
+        RoleName: !Ref RoleName
+        SessionName: !Ref SessionName
+        LogLevel: !Ref LogLevel
+        LogEvent: !Ref LogEvent
+        StepfunctionArn: !Ref StepfunctionArn
+        AlarmTable: !Ref AlarmTable
+        ClientTable: !Ref ClientTable
+        CompanyTag: !Ref CompanyTag
+        SupportTag: !Ref SupportTag
+        MonitorTag: !Ref MonitorTag
+        DimensionsTag: !Ref DimensionsTag
+        IdentifierTag: !Ref IdentifierTag
+        CloudwatchTag: !Ref CloudwatchTag
+        EC2LinuxDiskTag: !Ref EC2LinuxDiskTag
+        EC2WindowsDiskTag: !Ref EC2WindowsDiskTag
+
+  StateMachine:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: statemachine/template.yaml
+      Parameters:
+        Environment: !Ref Environment
+        Application: !Ref Application
+        Region: !Ref Region
+        RoleName: !Ref RoleName
+        SessionName: !Ref SessionName
+        LogLevel: !Ref LogLevel
+        LogEvent: !Ref LogEvent
+        StepfunctionArn: !Ref StepfunctionArn
+        AlarmTable: !Ref AlarmTable
+        ClientTable: !Ref ClientTable
+        CompanyTag: !Ref CompanyTag
+        SupportTag: !Ref SupportTag
+        MonitorTag: !Ref MonitorTag
+        DimensionsTag: !Ref DimensionsTag
+        IdentifierTag: !Ref IdentifierTag
+        CloudwatchTag: !Ref CloudwatchTag
+        EC2LinuxDiskTag: !Ref EC2LinuxDiskTag
+        EC2WindowsDiskTag: !Ref EC2WindowsDiskTag

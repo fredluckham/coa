@@ -1,0 +1,163 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: DynamoDB Template
+
+Parameters:
+
+  Environment:
+    Type: String
+    Description: 'Environment to deploy'
+    Default: 'dev'
+    AllowedValues:
+      - dev
+      - prod
+
+  Application:
+    Type: String
+    Description: 'Application name'
+    Default: 'coa'
+
+  Region:
+    Type: String
+    Description: 'Region in which to deploy'
+    Default: 'eu-west-1'
+
+  RoleName:
+    Type: String
+    Description: 'Role to assume'
+
+  LogLevel:
+    Type: String
+    Description: 'Powertools log level'
+    Default: 'DEBUG'
+
+  LogEvent:
+    Type: String
+    Description: 'Powertools log event in handler'
+    Default: 'true'
+
+  StepfunctionArn:
+    Type: String
+    Description: 'ARN of main step function'
+
+  SessionName:
+    Type: String
+    Description: 'Name of assumed session'
+
+  AlarmTable:
+    Type: String
+    Description: 'Name of alarm config DynamoDB table.'
+
+
+  ClientTable:
+    Type: String
+    Description: 'Name of client config DynamoDB table'
+
+  CompanyTag:
+    Type: String
+    Default: 'Rebura'
+
+  SupportTag:
+    Type: String
+    Default: 'Supported'
+
+  MonitorTag:
+    Type: String
+    Default: 'Monitored'
+
+  DimensionsTag:
+    Type: String
+    Default: 'Dimension'
+
+  IdentifierTag:
+    Type: String
+    Default: 'Identifier'
+
+  CloudwatchTag:
+    Type: String
+    Default: 'CloudWatch'
+
+  EC2LinuxDiskTag:
+    Type: String
+    Default: 'disk_used_percent'
+
+  EC2WindowsDiskTag:
+    Type: String
+    Default: 'LogicalDisk % Free Space'
+
+Resources:
+
+  # amazonq-ignore-next-line
+  AlarmConfigurationTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${Environment}_${Application}_alarm_configurations"
+      BillingMode: PROVISIONED
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      AttributeDefinitions:
+        - AttributeName: service
+          AttributeType: S
+        - AttributeName: metric_name
+          AttributeType: S
+      KeySchema:
+        - AttributeName: service
+          KeyType: HASH
+        - AttributeName: metric_name
+          KeyType: RANGE
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # amazonq-ignore-next-line
+  MonitoredResourcesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${Environment}_${Application}_monitored_resources"
+      BillingMode: PROVISIONED
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      AttributeDefinitions:
+        - AttributeName: account_id
+          AttributeType: S
+        - AttributeName: resource_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: account_id
+          KeyType: HASH
+        - AttributeName: resource_id
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # amazonq-ignore-next-line
+  TrackedAlarmsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${Environment}_${Application}_tracked_alarms"
+      BillingMode: PROVISIONED
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      AttributeDefinitions:
+        - AttributeName: account_id
+          AttributeType: S
+        - AttributeName: alarm_name
+          AttributeType: S
+      KeySchema:
+        - AttributeName: account_id
+          KeyType: HASH
+        - AttributeName: alarm_name
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
