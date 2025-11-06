@@ -130,7 +130,7 @@ When a tagged resource is created or updated:
 | Key               | Value      |
 |------------------|------------|
 | <COMPANY>:Monitored | true       |
-| <COMPANY>:Company   | Rebura     |
+| <COMPANY>:Company   | <COMPANY>     |
 | <COMPANY>:Supported | true       |
 
 Ensure that your environment includes a seed configuration for the matching resource type (e.g., EC2, RDS) to successfully apply alarm thresholds.
