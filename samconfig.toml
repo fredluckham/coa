@@ -8,7 +8,7 @@ region = "eu-west-1"
 confirm_changeset = true
 capabilities = ["CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND"]
 disable_rollback = true
-parameter_overrides="Environment=\"dev\" Application=\"coa\" Region=\"eu-west-1\" RoleName=\"service-role/CentralisedObservabilityAutomationRole\" SessionName=\"coa_role_session\" StepfunctionArn=\"arn:aws:states:eu-west-1:882066578115:stateMachine:dev_coa_statemachine\" AlarmTable=\"dev_coa_alarm_configurations\" MonitoredResourcesTable=\"dev_coa_monitored_resources\" TrackedAlarmsTable=\"dev_coa_tracked_alarms\" ClientTable=\"prod-rebura-ops-hub-customers\""
+parameter_overrides="Environment=\"dev\" Application=\"coa\" Region=\"eu-west-1\" RoleName=\"service-role/CentralisedObservabilityAutomationRole\" SessionName=\"coa_role_session\" StepfunctionArn=\"" AlarmTable=\"dev_coa_alarm_configurations\" MonitoredResourcesTable=\"dev_coa_monitored_resources\" TrackedAlarmsTable=\"dev_coa_tracked_alarms\" ClientTable=\"""
 image_repositories = []
 
 [prod.deploy.parameters]
@@ -20,5 +20,5 @@ region = "eu-west-1"
 confirm_changeset = true
 capabilities = ["CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND"]
 disable_rollback = true
-parameter_overrides="Environment=\"prod\" Application=\"coa\" Region=\"eu-west-1\" RoleName=\"service-role/rebura-coa-role\" SessionName=\"coa_role_session\" StepfunctionArn=\"arn:aws:states:eu-west-1:882066578115:stateMachine:prod_coa_statemachine\" AlarmTable=\"prod_coa_alarm_configurations\" MonitoredResourcesTable=\"prod_coa_monitored_resources\" TrackedAlarmsTable=\"prod_coa_tracked_alarms\" ClientTable=\"prod-rebura-ops-hub-customers\""
+parameter_overrides="Environment=\"prod\" Application=\"coa\" Region=\"eu-west-1\" RoleName=\"service-role/rebura-coa-role\" SessionName=\"coa_role_session\" StepfunctionArn=\"" AlarmTable=\"prod_coa_alarm_configurations\" MonitoredResourcesTable=\"prod_coa_monitored_resources\" TrackedAlarmsTable=\"prod_coa_tracked_alarms\" ClientTable=\"""
 image_repositories = []
