@@ -55,7 +55,7 @@ Parameters:
 
   CompanyTag:
     Type: String
-    Default: 'Rebura'
+    Default: ''
 
   SupportTag:
     Type: String
